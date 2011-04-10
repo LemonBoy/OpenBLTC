@@ -1,0 +1,23 @@
+BLTC PROTOCOL
+Reverse engineered by The Lemon Man
+Screw you Freescale, we have haxx!
+===================================
+
+Every command is padded to 0x10 boundary.
+
+== Upload to ram ==
+
+First it comes the handshake, wich is 0x20 bytes long (basically are two
+commands sent together). The payload must be in .sb format.
+
+0x00 - 0x01            - init upload command
+0x01 - 'B' 'L' 'T' 'C' - protocol signature
+0x05 - 0x01            - version or sub-command
+0x09 - depends         - payload size (BE)
+0x11 - 0x2             - start upload command
+0x12 - depends         - payload size, again
+
+After the handshake the payload is sent in chunks 0x41 bytes wise.
+
+0x01 - 0x2             - start upload command
+0x02 - chunk (0x40b)   - payload chunk

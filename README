@@ -1,0 +1,6 @@
+Freescale BLTC protocol reversed and documented.
+The Lemon Man (C) 2011
+
+OpenBLTC.c   - An implementation of a BLTC client for uploading and running
+             stuff on ram.
+Protocol.txt - The protocol, explained (kinda clearly).
