@@ -15,7 +15,7 @@ commands sent together). The payload must be in .sb format.
 0x05 - 0x01            - version or sub-command
 0x09 - depends         - payload size (BE)
 0x11 - 0x2             - start upload command
-0x12 - depends         - payload size, again
+0x12 - depends         - payload size (LE)
 
 After the handshake the payload is sent in chunks 0x41 bytes wise.
 
