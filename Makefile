@@ -1,2 +1,2 @@
 all:
-		gcc -o openbltc -lusb -I/usr/include/libusb-1.0 OpenBLTC.c
+		gcc -Wall -o openbltc `pkg-config --cflags --libs libusb-1.0` OpenBLTC.c

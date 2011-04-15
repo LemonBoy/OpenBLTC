@@ -17,7 +17,9 @@ commands sent together). The payload must be in .sb format.
 0x11 - 0x2             - start upload command
 0x12 - depends         - payload size (LE)
 
-After the handshake the payload is sent in chunks 0x41 bytes wise.
+After the handshake the payload is sent in chunks whose size seems to change 
+from board to board. 
+The SMTP3700 works with 0x40 chunks while the SMTP3780 with 0x400 ones.
 
 0x01 - 0x2             - start upload command
-0x02 - chunk (0x40b)   - payload chunk
+0x02 - chunk           - payload chunk

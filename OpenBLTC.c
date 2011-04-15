@@ -6,7 +6,7 @@
 #define SIGMATEL_VID 0x066F
 
 #define HEADER_SIZE 0x20
-#define PACKET_SIZE 0x41
+#define PACKET_SIZE 0x40
 
 static libusb_device_handle *dev;
 
@@ -27,15 +27,23 @@ void put_int_be (unsigned char *p, unsigned int i)
 }
 
 int
-upload_payload (char *payload, int payload_size)
+upload_payload (int packet_size, char *payload, int payload_size)
 {
     unsigned char header[HEADER_SIZE];
-    unsigned char packet[PACKET_SIZE];
+    unsigned char *packet;
     int xfer_remaining, xfer_size, xfer_sent;
     int last_percent;
     
+    /* Add a byte for the command */
+    packet_size += 1;
+    
+    packet = malloc(packet_size);
+    
+    if (!packet)
+        return 0;
+    
     memset(&header, 0, HEADER_SIZE);
-    memset(&packet, 0, PACKET_SIZE);
+    memset(&packet, 0, packet_size);
     
     /* Check if the payload is a valid .sb file */
     if (memcmp(payload + 0x14, "STMP", 4))
@@ -75,8 +83,8 @@ upload_payload (char *payload, int payload_size)
 
     while (xfer_remaining)
     {
-        /* Transfer in 0x40 chunks */
-        xfer_size = (xfer_remaining >= 0x40) ? 0x40 : xfer_remaining;
+        xfer_size = (xfer_remaining >= packet_size) ? 
+            packet_size : xfer_remaining;
         
         memcpy(&packet[1], payload + xfer_sent, xfer_size);
         
@@ -84,8 +92,8 @@ upload_payload (char *payload, int payload_size)
                 LIBUSB_REQUEST_TYPE_CLASS + LIBUSB_RECIPIENT_INTERFACE, 
                 0x0000009, 
                 0x0000202, 0x0000000, 
-                packet, PACKET_SIZE, 
-                5*1000) != PACKET_SIZE)
+                packet, packet_size, 
+                5*1000) != packet_size)
         {
             printf("Could not send the chunk\n");
             return 0;
@@ -98,17 +106,19 @@ upload_payload (char *payload, int payload_size)
         if (last_percent != xfer_sent * 100 / payload_size)
         {
             last_percent = xfer_sent * 100 / payload_size;
-            printf("Sending status %i%\n", xfer_sent * 100 / payload_size);
+            printf("Sending status %i%%\n", xfer_sent * 100 / payload_size);
         }
     }
+    
+    free(packet);
 
-    if (usb_reset(dev))
+    if (libusb_reset_device(dev))
     {
         printf("Could not reset the device\n");
         return 0;
     }
     
-    usb_close(dev);
+    libusb_close(dev);
     
     return 1;
 }
@@ -136,6 +146,7 @@ open_recovery_device (int pid)
 int main(int argc, char **argv)
 {       
     int recovery_pid;
+    int packet_size;
     FILE *f;
     char *buf;
     int buf_size;
@@ -145,17 +156,32 @@ int main(int argc, char **argv)
     libusb_init(NULL);
     libusb_set_debug(NULL, 3);
     
-    if (argc < 2)
+    if (argc != 3 && argc != 4)
     {
-        printf("Usage :\n\t%s 0xpid payload\n", argv[0]);
+        printf("Usage :\n\t%s pid payload [packet size]\n", argv[0]);
         exit(1);
     }
     
-    sscanf(argv[1], "%x", &recovery_pid);
+    if (sscanf(argv[1], "%x", &recovery_pid) != 1)
+    {
+        printf("Please enter a valid pid in hexadecimal form\n");
+        exit(1);
+    }
+    
+    if (argc == 4)
+    {
+        if (sscanf(argv[3], "%i", &packet_size) != 1)
+        {
+            printf("Please enter a valid packet size in decimal form\n");
+            exit(1);
+        }
+    } else {
+        packet_size = PACKET_SIZE;
+    }
     
     if (!open_recovery_device(recovery_pid))
     {
-        printf("Error when opening the usb\n");
+        printf("Cannot open the USB device\n");
         exit(1);
     }
     
@@ -177,7 +203,7 @@ int main(int argc, char **argv)
     
     fclose(f);
     
-    if (!upload_payload(buf, buf_size))
+    if (!upload_payload(packet_size, buf, buf_size))
     {
         printf("Error sending the payload\n");
         free(buf);
