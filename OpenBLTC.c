@@ -1,12 +1,15 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
+#include <unistd.h>
 #include <libusb.h>
 
-#define SIGMATEL_VID 0x066F
+#define ROOT_UID 		0
 
-#define HEADER_SIZE 0x20
-#define PACKET_SIZE 0x40
+#define SIGMATEL_VID 	0x066F
+
+#define HEADER_SIZE 	0x20
+#define PACKET_SIZE 	0x40
 
 static libusb_device_handle *dev;
 
@@ -26,6 +29,21 @@ void put_int_be (unsigned char *p, unsigned int i)
     p[0] = (i>>24)&0xFF;
 }
 
+void print_progress (int progress)
+{
+	int i;
+	
+	progress /= 2;
+	
+	printf("[");
+	for (i = 0; i < progress; i++)
+		printf("=");
+	printf(">");
+	for (i = progress + 1; i < 50; i++)
+		printf(" ");
+	printf("]\r");
+}
+
 int
 upload_payload (int packet_size, char *payload, int payload_size)
 {
@@ -38,12 +56,12 @@ upload_payload (int packet_size, char *payload, int payload_size)
     packet_size += 1;
     
     packet = malloc(packet_size);
-    
+
     if (!packet)
         return 0;
     
     memset(&header, 0, HEADER_SIZE);
-    memset(&packet, 0, packet_size);
+    memset( packet, 0, packet_size);
     
     /* Check if the payload is a valid .sb file */
     if (memcmp(payload + 0x14, "STMP", 4))
@@ -51,7 +69,7 @@ upload_payload (int packet_size, char *payload, int payload_size)
         printf("Invalid .sb file supplied\n");
         return 0;
     }
-    
+
     /* Setup the header */
     header[0] = 0x1;
     header[1] = 'B';
@@ -62,7 +80,8 @@ upload_payload (int packet_size, char *payload, int payload_size)
     put_int_le(&header[9], payload_size);
     header[16] = 0x2;
     put_int_be(&header[17], payload_size);
-
+    
+   
     if (libusb_control_transfer(dev, 
             LIBUSB_REQUEST_TYPE_CLASS + LIBUSB_RECIPIENT_INTERFACE, 
             0x0000009, 
@@ -83,10 +102,10 @@ upload_payload (int packet_size, char *payload, int payload_size)
 
     while (xfer_remaining)
     {
-        xfer_size = (xfer_remaining >= packet_size) ? 
-            packet_size : xfer_remaining;
-        
-        memcpy(&packet[1], payload + xfer_sent, xfer_size);
+        xfer_size = (xfer_remaining >= packet_size - 1) ? 
+            packet_size - 1 : xfer_remaining;
+
+        memcpy(packet + 1, payload + xfer_sent, xfer_size);
         
         if (libusb_control_transfer(dev, 
                 LIBUSB_REQUEST_TYPE_CLASS + LIBUSB_RECIPIENT_INTERFACE, 
@@ -95,28 +114,19 @@ upload_payload (int packet_size, char *payload, int payload_size)
                 packet, packet_size, 
                 5*1000) != packet_size)
         {
-            printf("Could not send the chunk\n");
+            printf("\nCould not send the chunk\n");
             return 0;
         }
         
         xfer_sent += xfer_size;
         xfer_remaining -= xfer_size;
         
-        /* Avoid flooding the user with the stats */
-        if (last_percent != xfer_sent * 100 / payload_size)
-        {
-            last_percent = xfer_sent * 100 / payload_size;
-            printf("Sending status %i%%\n", xfer_sent * 100 / payload_size);
-        }
+        print_progress(xfer_sent * 100 / payload_size);
     }
     
+    printf("\n");
+    
     free(packet);
-
-    if (libusb_reset_device(dev))
-    {
-        printf("Could not reset the device\n");
-        return 0;
-    }
     
     libusb_close(dev);
     
@@ -152,6 +162,12 @@ int main(int argc, char **argv)
     int buf_size;
     
     printf("OpenBLTC 0.1\nThe Lemon Man (C) 2011\n");
+    
+    if (getuid() != ROOT_UID)
+    {
+    	printf("This program should be run as root\n");
+    	exit(1);
+    }
     
     libusb_init(NULL);
     libusb_set_debug(NULL, 3);
@@ -199,6 +215,12 @@ int main(int argc, char **argv)
     
     buf = malloc(buf_size);
     
+    if (!buf)
+    {
+    	printf("Cannot allocate the buffer\n");
+    	exit(1);
+    }
+    
     fread(buf, 1, buf_size, f),
     
     fclose(f);
@@ -209,7 +231,7 @@ int main(int argc, char **argv)
         free(buf);
         exit(1);
     }
-    
+
     free(buf);
     
     return 0;
