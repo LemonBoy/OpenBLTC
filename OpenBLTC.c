@@ -81,7 +81,6 @@ upload_payload (int packet_size, char *payload, int payload_size)
     header[16] = 0x2;
     put_int_be(&header[17], payload_size);
     
-   
     if (libusb_control_transfer(dev, 
             LIBUSB_REQUEST_TYPE_CLASS + LIBUSB_RECIPIENT_INTERFACE, 
             0x0000009, 
@@ -128,6 +127,8 @@ upload_payload (int packet_size, char *payload, int payload_size)
     
     free(packet);
     
+    libusb_interrupt_transfer(dev, 0x81, packet, packet_size, NULL, 1000);
+    
     libusb_close(dev);
     
     return 1;
@@ -149,6 +150,12 @@ open_recovery_device (int pid)
             return 0;
         }
     }
+    
+    if (libusb_claim_interface(dev, 0))
+    {
+        printf("Could not claim interface 0\n");
+        return 0;
+    } 
     
     return 1;
 }
@@ -194,7 +201,7 @@ int main(int argc, char **argv)
     } else {
         packet_size = PACKET_SIZE;
     }
-    
+
     if (!open_recovery_device(recovery_pid))
     {
         printf("Cannot open the USB device\n");
