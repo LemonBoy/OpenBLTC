@@ -50,7 +50,6 @@ upload_payload (int packet_size, char *payload, int payload_size)
     unsigned char header[HEADER_SIZE];
     unsigned char *packet;
     int xfer_remaining, xfer_size, xfer_sent;
-    int last_percent;
     
     /* Add a byte for the command */
     packet_size += 1;
@@ -92,7 +91,6 @@ upload_payload (int packet_size, char *payload, int payload_size)
         return 0;
     }
     
-    last_percent = 0;
     xfer_sent = 0;
     xfer_remaining = payload_size;
     
